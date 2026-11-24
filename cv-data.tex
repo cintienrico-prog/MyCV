@@ -1,0 +1,95 @@
+% Lists generated from data/ (see data/README.md): publications from
+% data/publications.bib with biblatex, teaching and supervision from the CSV files
+% with datatool. Each entry comes out as the same \cvitem the CV used to spell out.
+%   \cvbooks  \cvarticles  \cvteaching  \cvsupervision
+% Compile with Biber (Overleaf does this by itself).
+
+\usepackage[backend=biber, sorting=ydnt, maxnames=99, giveninits=false]{biblatex}
+\addbibresource{data/publications.bib}
+\usepackage{datatool}
+
+% The website's `status` (under contract, submitted, …) is biblatex's pubstate;
+% entries that have one are not published yet and stay off the CV lists.
+\DeclareSourcemap{\maps[datatype=bibtex]{\map{
+  \step[fieldsource=status, fieldtarget=pubstate]}}}
+\defbibcheck{published}{\iffieldundef{pubstate}{}{\skipentry}}
+\defbibfilter{articles}{type=article or type=incollection}
+
+\makeatletter
+% "(joint work with A, B, and C)": every author except me, first name in full.
+\newcommand*{\cv@me}{Cinti}
+\newcounter{cv@names}
+\newcommand*{\cv@ifme}[2]{\edef\cv@fam{\namepartfamily}\ifdefstrequal{\cv@fam}{\cv@me}{#1}{#2}}
+\DeclareNameFormat{cv@count}{\cv@ifme{}{\stepcounter{cv@names}}}
+\DeclareNameFormat{cv@list}{%
+  \cv@ifme{}{%
+    \stepcounter{cv@names}%
+    \ifnum\value{cv@names}>1
+      \ifnum\value{cv@names}=\cv@total
+        \ifnum\cv@total>2 \addcomma\addspace\else\ \fi and\addspace
+      \else\addcomma\addspace\fi
+    \fi
+    \namepartgiven\addspace\namepartfamily}}
+\newcommand*{\cvjoint}{%
+  \setcounter{cv@names}{0}%
+  \begingroup\setbox0\hbox{\printnames[cv@count][1-99]{author}}\endgroup
+  \edef\cv@total{\the\value{cv@names}}%
+  \ifnum\cv@total>0
+    \setcounter{cv@names}{0}%
+    \space(joint work with \printnames[cv@list][1-99]{author})%
+  \fi}
+
+% DOIs as text in the body font, as the CV had them (no stretchy gaps when justified)
+\Urlmuskip=0mu plus 0mu
+\DeclareFieldFormat{cvdoi}{, {\urlstyle{same}\nolinkurl{https://doi.org/#1}}}
+\newcommand*{\cvwhere}{% publisher, place
+  \iflistundef{publisher}{}{, \printlist{publisher}}%
+  \iflistundef{location}{}{, \printlist{location}}}
+
+% Articles are numbered from the oldest, (1), to the newest, listed first: a first,
+% invisible pass counts them.
+\newcounter{cv@total}\newcounter{cv@pub}
+\defbibenvironment{cv@count}{\setbox0\vbox\bgroup}{\egroup}{\stepcounter{cv@total}}
+\defbibenvironment{cv@items}{\setcounter{cv@pub}{\numexpr\value{cv@total}+1\relax}}{}%
+  {\addtocounter{cv@pub}{-1}}
+
+\DeclareBibliographyDriver{article}{%
+  \cvitem{\textbf{(\thecv@pub) - \printfield{year}}}{%
+    \textit{\printfield[noformat]{title}}, \printfield[noformat]{journaltitle}%
+    \printfield[cvdoi]{doi}\cvjoint.}}
+\DeclareBibliographyDriver{incollection}{%
+  \cvitem{\textbf{(\thecv@pub) - \printfield{year}}}{%
+    \textit{\printfield[noformat]{title}}, in \textit{\printfield[noformat]{booktitle}}%
+    \iflistundef{location}{}{, \printlist{location}}%
+    \iflistundef{publisher}{}{: \printlist{publisher}}%
+    \printfield[cvdoi]{doi}\cvjoint.}}
+\DeclareBibliographyDriver{book}{%
+  \cvitem{\textbf{\printfield{year}}}{%
+    \textit{\printfield[noformat]{title}}%
+    \iffieldundef{titleaddon}{}{ (in \printlist{language}, English title: \textit{\printfield[noformat]{titleaddon}})}%
+    \cvwhere
+    \iffieldundef{isbn}{}{, ISBN: \printfield[noformat]{isbn}}%
+    \cvjoint}}
+
+\newcommand*{\cvbooks}{\nocite{*}%
+  \printbibliography[heading=none, type=book, check=published, env=cv@items]}
+\newcommand*{\cvarticles}{\nocite{*}\setcounter{cv@total}{0}%
+  \printbibliography[heading=none, filter=articles, check=published, env=cv@count]%
+  \printbibliography[heading=none, filter=articles, check=published, env=cv@items]}
+
+% Teaching: year, title, hours, kind, institution, note
+\DTLloadrawdb{cv@teaching}{data/teaching.csv}
+\newcommand*{\cvteaching}{%
+  \DTLforeach*{cv@teaching}{\y=year,\t=title,\h=hours,\k=kind,\i=institution,\n=note}{%
+    \cvitem{\textbf{\y}}{\textit{\t}%
+      \DTLifnullorempty{\h}{}{ (\h\ hrs)}, \k, \i
+      \DTLifnullorempty{\n}{}{ (\n)}}}}
+
+% Supervision: year, student, work, title, programme, institution, role
+\DTLloadrawdb{cv@supervision}{data/supervision.csv}
+\newcommand*{\cvsupervision}{%
+  \DTLforeach*{cv@supervision}{\y=year,\s=student,\w=work,\t=title,\p=programme,\i=institution,\r=role}{%
+    \cvitem{\textbf{\y}}{\s, \w
+      \DTLifnullorempty{\t}{}{ on \textit{\t}}%
+      \DTLifnullorempty{\r}{}{ (\r)}, \p, \i}}}
+\makeatother
